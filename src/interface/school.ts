@@ -1,4 +1,4 @@
-import type { SchoolLevel } from "../models/School";
+export type SchoolLevel = "nursery" | "primary" | "secondary";
 
 export interface CreateSchoolRequest {
   name: string;

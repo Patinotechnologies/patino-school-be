@@ -1,23 +1,19 @@
-import type { Knex } from "knex";
-import { db } from "../config/db";
-import { SCHOOLS_TABLE, type School, type NewSchool } from "../models/School";
+import type { Prisma, SchoolLevel } from "@prisma/client";
+import { prisma } from "../config/prisma";
+
+type Client = typeof prisma | Prisma.TransactionClient;
 
 export const schoolRepository = {
-  /** Scoped by organization_id so a school can never be read across tenants. */
-  async findById(
-    id: string,
-    organizationId: string,
-    trx: Knex.Transaction | Knex = db,
-  ): Promise<School | undefined> {
-    return trx<School>(SCHOOLS_TABLE).where({ id, organization_id: organizationId }).first();
+  /** Scoped by organizationId so a school can never be read across tenants. */
+  findById(id: string, organizationId: string, client: Client = prisma) {
+    return client.school.findFirst({ where: { id, organizationId } });
   },
 
-  async listByOrganization(organizationId: string, trx: Knex.Transaction | Knex = db): Promise<School[]> {
-    return trx<School>(SCHOOLS_TABLE).where({ organization_id: organizationId }).orderBy("created_at", "asc");
+  listByOrganization(organizationId: string, client: Client = prisma) {
+    return client.school.findMany({ where: { organizationId }, orderBy: { createdAt: "asc" } });
   },
 
-  async create(data: NewSchool, trx: Knex.Transaction | Knex = db): Promise<School> {
-    const [school] = await trx<School>(SCHOOLS_TABLE).insert(data).returning("*");
-    return school;
+  create(data: { organizationId: string; name: string; level: SchoolLevel }, client: Client = prisma) {
+    return client.school.create({ data });
   },
 };

@@ -1,14 +1,18 @@
-import type { Knex } from "knex";
-import { db } from "../config/db";
-import { ORGANIZATIONS_TABLE, type Organization, type NewOrganization } from "../models/Organization";
+import type { Prisma } from "@prisma/client";
+import { prisma } from "../config/prisma";
+
+type Client = typeof prisma | Prisma.TransactionClient;
 
 export const organizationRepository = {
-  async findById(id: string, trx: Knex.Transaction | Knex = db): Promise<Organization | undefined> {
-    return trx<Organization>(ORGANIZATIONS_TABLE).where({ id }).first();
+  findById(id: string, client: Client = prisma) {
+    return client.organization.findUnique({ where: { id } });
   },
 
-  async create(data: NewOrganization, trx: Knex.Transaction | Knex = db): Promise<Organization> {
-    const [organization] = await trx<Organization>(ORGANIZATIONS_TABLE).insert(data).returning("*");
-    return organization;
+  findByOwnerId(ownerId: string, client: Client = prisma) {
+    return client.organization.findFirst({ where: { ownerId } });
+  },
+
+  create(data: { name: string; ownerId: string }, client: Client = prisma) {
+    return client.organization.create({ data });
   },
 };

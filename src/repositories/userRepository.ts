@@ -1,18 +1,18 @@
-import type { Knex } from "knex";
-import { db } from "../config/db";
-import { USERS_TABLE, type User, type NewUser } from "../models/User";
+import type { Prisma } from "@prisma/client";
+import { prisma } from "../config/prisma";
+
+type Client = typeof prisma | Prisma.TransactionClient;
 
 export const userRepository = {
-  async findByEmail(email: string, trx: Knex.Transaction | Knex = db): Promise<User | undefined> {
-    return trx<User>(USERS_TABLE).where({ email }).first();
+  findByEmail(email: string, client: Client = prisma) {
+    return client.user.findUnique({ where: { email } });
   },
 
-  async findById(id: string, trx: Knex.Transaction | Knex = db): Promise<User | undefined> {
-    return trx<User>(USERS_TABLE).where({ id }).first();
+  findById(id: string, client: Client = prisma) {
+    return client.user.findUnique({ where: { id } });
   },
 
-  async create(data: NewUser, trx: Knex.Transaction | Knex = db): Promise<User> {
-    const [user] = await trx<User>(USERS_TABLE).insert(data).returning("*");
-    return user;
+  create(data: { email: string; fullName: string; passwordHash: string }, client: Client = prisma) {
+    return client.user.create({ data });
   },
 };

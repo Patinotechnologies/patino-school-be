@@ -9,7 +9,9 @@ The data is deeply relational — pupils belong to classes, classes belong to sc
 - **Postgres over MySQL** for its stronger JSON support (useful for flexible fields like onboarding config and grade templates that differ by school level) and row-level security, which maps well to multi-tenancy.
 - **Skip a document database (MongoDB)** as the primary store — it would make cross-entity reporting (the dashboard, report cards) harder, not easier, given how relational this data is.
 
-**Query layer: [Knex](https://knexjs.org/) + [pg](https://node-postgres.com/) (decided)**, not a full ORM like Prisma. Knex is a query builder, not a code-generating ORM — it keeps queries explicit in the `repositories/` layer instead of hiding them behind a generated client, which matters here because tenant scoping (`organization_id`/`school_id` filters) needs to be visible and enforced consistently in one place. Knex also owns schema migrations (`knex migrate:*`), so there's one tool for both querying and schema change.
+**Query layer: [Prisma](https://www.prisma.io/) (switched from Knex — decided).** The project started on Knex specifically to avoid an ORM hiding tenant-scoping behind a generated client (see the original reasoning, preserved in git history). After building the first vertical slice, the team switched to Prisma anyway, while **keeping the concern that motivated Knex**: `repositories/` stays the only layer that talks to the database, so `organization_id`/`school_id` filters are still enforced in one place — services and controllers never import `@prisma/client` or `src/config/prisma.ts` directly, only `repositories/*`. Prisma's `PrismaClient` sits *inside* each repository function, not in place of the repository layer. Two things made the switch worth it even so: `schema.prisma` as one file that's simultaneously the DB's own documentation (constraints — `@unique`, nullability, relations, `onDelete` — declared right on the field, visible without opening a migration) and the migration source of truth (`prisma migrate dev` generates SQL migrations from schema diffs, instead of hand-writing each one); and `@updatedAt`, which actually keeps `updated_at` current on every write — the original Knex `timestamps(true, true)` only set it once, at insert, since no trigger was ever added.
+
+**Models: Prisma's generated types, not hand-written (decided, after going back and forth).** The team briefly tried hand-writing `models/*.ts` again post-switch (mirroring the pre-Prisma Knex era) to avoid depending on `@prisma/client`'s generated `User`/`Organization`/`School`/`SchoolLevel` types — the concern being two sources of truth (`schema.prisma` and `models/*.ts`) that could drift. That was undone: `models/` is gone again, and repositories/services import types straight from `@prisma/client`. A TypeORM-style alternative (decorator-based `@Entity` classes as the actual single source of truth — no separate schema file at all) was also considered and explicitly declined in favor of staying on Prisma. Net result: `schema.prisma` is the one and only schema/type source of truth; nothing hand-maintained duplicates it.
 
 ## Multi-tenancy model
 
@@ -48,36 +50,35 @@ Deploy as a modular monolith on Render:
 
 ### Backend — `patino-schools-be`
 
-Express + TypeScript, layered by responsibility (controllers → services → repositories → models), as already scaffolded:
+Express + TypeScript, layered by responsibility (controllers → services → repositories → Prisma Client), as already scaffolded:
 
 ```
 patino-schools-be/
 ├── doc/                  # PRD and architecture docs
+├── prisma/
+│   ├── schema.prisma     # DB schema — relations, constraints (@unique, onDelete, native enums); the migration source of truth
+│   └── migrations/       # Generated SQL migrations (one timestamped folder per `prisma migrate dev`)
+├── prisma.config.ts      # DATABASE_URL for the Prisma CLI (migrate/studio) — separate from the runtime client, see note below
 ├── src/
 │   ├── app.ts            # Express app entrypoint — middleware + route wiring
 │   ├── config/
 │   │   ├── env.ts         # Typed env var loader (dotenv)
-│   │   ├── knex-config.ts # The actual Knex.Config (dev/production); source of truth
-│   │   └── db.ts          # Knex instance, built from knex-config.ts
+│   │   └── prisma.ts      # PrismaClient singleton (with the pg driver adapter), cached on globalThis in dev
 │   ├── controllers/      # authController, schoolController — parse req, call services, shape res
-│   ├── db/
-│   │   ├── migrations/   # Knex migrations (schema changes, timestamped)
-│   │   └── seeds/        # Knex seed data
-│   ├── interface/        # DTOs — auth.ts (RegisterRequest/AuthResponse), school.ts (CreateSchoolRequest/SchoolResponse)
+│   ├── interface/        # DTOs — auth.ts (RegisterRequest/AuthResponse), school.ts (CreateSchoolRequest/SchoolResponse/SchoolLevel)
 │   ├── middlewares/      # authenticate (JWT), validate (Zod), errorHandler
-│   ├── models/           # Row types mirroring each table — User, Organization, School
-│   ├── repositories/     # userRepository, organizationRepository, schoolRepository — the only layer that queries Postgres
+│   ├── repositories/     # userRepository, organizationRepository, schoolRepository — the only layer that imports Prisma Client
 │   ├── routes/           # authRoutes (/api/auth), schoolRoutes (/api/schools)
 │   ├── services/         # authService (register/login), schoolService — business logic, calls repositories
 │   ├── utils/            # password.ts (bcrypt), jwt.ts (sign/verify), AppError.ts
 │   └── validations/      # Zod schemas — authValidation, schoolValidation
-├── knexfile.ts           # Thin re-export of src/config/knex-config.ts, for the Knex CLI's sake (see note below)
+├── .nvmrc                # Pins this project to Node 24.14.0 — Prisma 7's CLI requires it (see note below)
 ├── .env.example           # Documents required env vars (DATABASE_URL, JWT_SECRET, PORT, NODE_ENV); copy to .env locally
 ├── package.json
 └── tsconfig.json
 ```
 
-Request flow: `routes` → `controllers` → `services` (business logic) → `repositories` (data access, tenant-scoped) → `models` (schema/types). Keeping `repositories/` as the only layer that talks to Postgres means tenant scoping (`organization_id`/`school_id` filters) is enforced in one place rather than trusted to every service.
+Request flow: `routes` → `controllers` → `services` (business logic) → `repositories` (data access, tenant-scoped) → Prisma Client (query execution, types inferred from `schema.prisma`). `models/` is gone — see "Models: Prisma's generated types" above. `interface/` stays independent of `@prisma/client` (e.g. `interface/school.ts` defines its own `SchoolLevel` union) — those are API DTOs, not DB shapes, and shouldn't change just because the ORM does.
 
 Suggested additions as the backend grows (not yet present):
 - `src/jobs/` — background job definitions (report card generation, invoice generation) for the Redis/BullMQ queue
@@ -87,22 +88,23 @@ Suggested additions as the backend grows (not yet present):
 | Package | Role |
 |---|---|
 | `express` | HTTP server / routing |
-| `knex` | Query builder + migration/seed runner for Postgres |
-| `pg` | Postgres driver (used by Knex under the hood) |
+| `@prisma/client` | Generated, type-safe database client — used only inside `repositories/` |
+| `prisma` *(dev)* | CLI — `migrate dev`/`migrate deploy`/`generate`/`studio` |
+| `@prisma/adapter-pg` | Postgres driver adapter Prisma 7's `PrismaClient` requires explicitly (brings in `pg` as a transitive dependency — no direct `pg`/`@types/pg` needed anymore) |
 | `dotenv` | Loads `.env` into `process.env` for local dev |
 | `zod` | Request payload validation (`validate` middleware parses `req.body` against a schema) |
 | `bcrypt` | Password hashing (12 salt rounds) |
 | `jsonwebtoken` | Signs/verifies the auth token (`sub`, `organizationId`, `role` claims — matches the "JWT with role + school-scope claims" decision above) |
 | `cors` | Allows the frontend (a different origin — Next.js runs on 3001, the API on 3000) to call this API from the browser |
-| `tsx` *(dev)* | Runs TypeScript directly — used by nodemon's `exec` and by the Knex CLI (see below) |
+| `tsx` *(dev)* | Runs TypeScript directly — used by nodemon's `exec` |
 | `nodemon` *(dev)* | Watches `src/**/*.ts` and restarts `tsx src/app.ts` on change — driven by `nodemon.json` at the repo root (`"exec": "tsx src/app.ts"`) |
 | `typescript`, `@types/*` *(dev)* | Type-checking and type defs |
 
 **CORS (decided):** allowed origins come from `CORS_ORIGIN` (comma-separated), defaulting to `http://localhost:3001` for local dev — see `env.corsOrigins` in `src/config/env.ts`, applied via `app.use(cors({ origin: env.corsOrigins }))` as the very first middleware in `src/app.ts`, before `express.json()`. In production (Render), set `CORS_ORIGIN` to the deployed frontend's actual URL(s); an unlisted origin gets no `Access-Control-Allow-Origin` header, so the browser blocks it client-side even though the server still processes the request server-side (verified directly: a disallowed-origin request still got a normal JSON response, just without the CORS header — that's correct, expected behavior, not a bug).
 
-**Why `tsx` for the Knex CLI:** the project's `tsconfig.json` has `noEmit: true` (nothing is pre-compiled to JS for dev), so `knexfile.ts` and the `.ts` migrations need a TS-aware runner. The npm scripts below run Knex's CLI through `tsx` instead of plain `node`, so it can load `knexfile.ts` and TypeScript migration files directly.
+**Node version (required): 24.14.0+, pinned via `.nvmrc`.** The `prisma` CLI (v7) requires Node `^22.18.0 || ^24.11.0 || >=26.0.0` — this machine's active Node was 22.17.0, just below the cutoff, so the project is pinned to a newer version already available locally (`nvm use`, or any nvm-aware shell picks up `.nvmrc` automatically) rather than changing the machine's global Node default. `@prisma/client` itself has no such restriction; only the CLI does. After switching Node versions, native modules (`bcrypt`) needed a clean reinstall (`rm -rf node_modules && yarn install`) to rebuild for the new ABI — verified directly (`bcrypt.hash()` call) rather than assumed.
 
-**Why `knexfile.ts` is just a re-export:** `tsconfig.json` sets `rootDir: "./src"` and `include: ["src/**/*"]`, so only files under `src/` are part of the type-checked program — a `.ts` file at the repo root (like `knexfile.ts`) isn't allowed to be pulled in by an `import`, or `tsc` errors with "File is not under 'rootDir'". The actual `Knex.Config` object lives in `src/config/knex-config.ts` (used by `src/config/db.ts` to build the app's runtime connection); the root `knexfile.ts` only re-exports it, purely so the Knex CLI finds a `./knexfile.ts` at the project root by convention. `tsx` executes that re-export fine since it transpiles file-by-file and doesn't enforce `rootDir`.
+**Why `prisma.config.ts` exists separately from `schema.prisma`:** Prisma 7 removed `datasource { url = env("DATABASE_URL") }` support from the schema file for Migrate — the CLI now reads the connection string from `prisma.config.ts`'s `datasource.url` instead (`schema.prisma`'s `datasource` block keeps only `provider`). This is unrelated to the `src/config/prisma.ts` runtime client, which builds its own connection via `@prisma/adapter-pg` — two separate config paths for the CLI vs. the running app, both ultimately reading `DATABASE_URL`.
 
 **Local Postgres instance:**
 
@@ -118,8 +120,10 @@ createdb -U "$(whoami)" -h localhost patino_schools_dev
 
 **Local setup:**
 ```bash
+nvm use                # picks up .nvmrc (Node 24.14.0)
 cp .env.example .env   # then set DATABASE_URL to match your local Postgres role/password
-yarn migrate:latest    # applies all pending migrations
+yarn install            # postinstall runs `prisma generate`
+yarn migrate:dev        # applies all pending migrations (and generates the client)
 ```
 
 `.env.example` assumes a `postgres`/`postgres` user/password (the common Docker default) — adjust `DATABASE_URL` to whatever role your local Postgres actually has (e.g. `postgres://mac@localhost:5432/patino_schools_dev` for a trust-auth Homebrew setup with no password).
@@ -129,18 +133,13 @@ yarn migrate:latest    # applies all pending migrations
 | Script | Purpose |
 |---|---|
 | `yarn dev` | Runs the Express app via nodemon (`nodemon.json` → `tsx src/app.ts`), auto-restarting on any `src/**/*.ts` change |
-| `yarn migrate:make <name>` | Scaffolds a new timestamped `.ts` migration in `src/db/migrations` |
-| `yarn migrate:latest` | Applies all pending migrations |
-| `yarn migrate:rollback` | Rolls back the last migration batch |
-| `yarn seed:make <name>` | Scaffolds a new `.ts` seed file in `src/db/seeds` |
-| `yarn seed:run` | Runs all seed files |
+| `yarn migrate:dev` | Diffs `schema.prisma` against the DB, generates + applies a migration, regenerates the client (local dev only — needs a shadow DB, which Prisma creates/drops automatically) |
+| `yarn migrate:deploy` | Applies already-generated migrations without diffing — what production/CI runs |
+| `yarn prisma:studio` | Opens Prisma Studio, a GUI for browsing/editing the DB (alternative to Postico) |
+| *(auto)* `postinstall` | Runs `prisma generate` after every `yarn install`, so the client is always in sync with `schema.prisma` |
 
-**Migrations so far:**
-- `20261016000001_create_organizations_table` — `organizations(id uuid pk, name, timestamps)`. The first table in the tenant chain (Organization → School → everything else).
-- `20261016000002_create_users_table` — `users(id uuid pk, email unique, password_hash, timestamps)`. Auth is a **separate table from `staff`**, decided here: a proprietor owns an organization directly and isn't scoped to one school the way `staff` (school_ids) is, so login identity (`users`) and school-level profile (`staff`, added later) are kept distinct. A `staff` row can later carry a `user_id` FK for staff who also log in.
-- `20261016000003_add_owner_to_organizations` — adds `organizations.owner_id` (FK → `users.id`, `RESTRICT` on delete). Resolves the deferred "owner (proprietor)" field from the PRD's Data Model Overview.
-- `20261016000004_create_schools_table` — `schools(id uuid pk, organization_id FK → organizations, name, level enum[nursery|primary|secondary], onboarded_at nullable, timestamps)`. `onboarded_at` is null until the onboarding wizard (staff count, grades, terms) completes — matches the PRD acceptance criterion that a school only appears in the sidebar switcher once onboarding is done.
-- `20261017000001_add_full_name_to_users` — adds `users.full_name` (`notNullable`). `users` originally held only login identity (email/password); a name is needed to address/display a proprietor anywhere in the product, since they don't get a `staff` row the way school-scoped roles do.
+**Migrations so far** (now a single generated migration, since the switch from Knex re-created the schema from `schema.prisma` rather than translating the old migration history):
+- `20261020163032_init` — creates `users`, `organizations`, `schools` with the same constraints the five original Knex migrations built up: `users.email` unique; `organizations.owner_id` → `users.id` (`RESTRICT` on delete); `schools.organization_id` → `organizations.id` (`CASCADE` on delete) with an index; `schools.level` as a native Postgres enum (`school_level`); `schools.onboarded_at` nullable, null until onboarding completes (PRD acceptance criterion: a school only appears in the sidebar switcher once onboarding is done); `users.full_name` required. The **users-vs-staff split** (auth identity vs. school-scoped profile, a `staff.user_id` FK added later for staff who log in) still holds — it was a data-model decision, not a Knex-specific one.
 
 **API endpoints so far** (first vertical slice — PRD Goal #1, "register an organization, add a school"):
 
@@ -184,7 +183,7 @@ patino-school-fe/
 │   │       ├── api/schools-api.ts     # schoolsApi.list/create + useSchoolsQuery/useCreateSchoolMutation
 │   │       └── pages/schools-page.tsx # schools list + create-school form
 │   ├── components/
-│   │   └── ui/text-field.tsx     # shared form input, used by both auth forms
+│   │   └── ui/                   # button, input, checkbox, dropdown, modal — shadcn-style (cva + clsx/tailwind-merge via cn(), Radix primitives for checkbox/dropdown/modal)
 │   ├── config/
 │   │   ├── env.ts                # NEXT_PUBLIC_API_URL, one getter per backend service (today: just one — the monolith)
 │   │   └── api.ts                # apiConfig.baseUrl, built from env.ts

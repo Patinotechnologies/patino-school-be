@@ -1,4 +1,4 @@
-import { db } from "../config/db";
+import { prisma } from "../config/prisma";
 import { userRepository } from "../repositories/userRepository";
 import { organizationRepository } from "../repositories/organizationRepository";
 import { hashPassword, verifyPassword } from "../utils/password";
@@ -15,14 +15,14 @@ export const authService = {
 
     const passwordHash = await hashPassword(data.password);
 
-    const { user, organization } = await db.transaction(async (trx) => {
+    const { user, organization } = await prisma.$transaction(async (tx) => {
       const user = await userRepository.create(
-        { email: data.email, full_name: data.fullName, password_hash: passwordHash },
-        trx,
+        { email: data.email, fullName: data.fullName, passwordHash },
+        tx,
       );
       const organization = await organizationRepository.create(
-        { name: data.organizationName, owner_id: user.id },
-        trx,
+        { name: data.organizationName, ownerId: user.id },
+        tx,
       );
       return { user, organization };
     });
@@ -31,18 +31,18 @@ export const authService = {
 
     return {
       token,
-      user: { id: user.id, email: user.email, fullName: user.full_name },
+      user: { id: user.id, email: user.email, fullName: user.fullName },
       organization: { id: organization.id, name: organization.name },
     };
   },
 
   async login(email: string, password: string): Promise<AuthResponse> {
     const user = await userRepository.findByEmail(email);
-    if (!user || !(await verifyPassword(password, user.password_hash))) {
+    if (!user || !(await verifyPassword(password, user.passwordHash))) {
       throw new AppError(401, "Invalid email or password");
     }
 
-    const organization = await db("organizations").where({ owner_id: user.id }).first();
+    const organization = await organizationRepository.findByOwnerId(user.id);
     if (!organization) {
       throw new AppError(404, "No organization found for this account");
     }
@@ -51,7 +51,7 @@ export const authService = {
 
     return {
       token,
-      user: { id: user.id, email: user.email, fullName: user.full_name },
+      user: { id: user.id, email: user.email, fullName: user.fullName },
       organization: { id: organization.id, name: organization.name },
     };
   },
@@ -68,7 +68,7 @@ export const authService = {
     }
 
     return {
-      user: { id: user.id, email: user.email, fullName: user.full_name },
+      user: { id: user.id, email: user.email, fullName: user.fullName },
       organization: { id: organization.id, name: organization.name },
     };
   },

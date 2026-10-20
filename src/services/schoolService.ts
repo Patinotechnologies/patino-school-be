@@ -1,20 +1,20 @@
+import type { School } from "@prisma/client";
 import { schoolRepository } from "../repositories/schoolRepository";
-import type { CreateSchoolRequest, SchoolResponse } from "../interface/school";
-import type { School } from "../models/School";
+import type { CreateSchoolRequest, SchoolLevel, SchoolResponse } from "../interface/school";
 
 function toResponse(school: School): SchoolResponse {
   return {
     id: school.id,
     name: school.name,
-    level: school.level,
-    onboardedAt: school.onboarded_at ? school.onboarded_at.toISOString() : null,
+    level: school.level as SchoolLevel,
+    onboardedAt: school.onboardedAt ? school.onboardedAt.toISOString() : null,
   };
 }
 
 export const schoolService = {
   async create(organizationId: string, data: CreateSchoolRequest): Promise<SchoolResponse> {
     const school = await schoolRepository.create({
-      organization_id: organizationId,
+      organizationId,
       name: data.name,
       level: data.level,
     });

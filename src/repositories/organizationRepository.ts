@@ -15,4 +15,12 @@ export const organizationRepository = {
   create(data: { name: string; ownerId: string }, client: Client = prisma) {
     return client.organization.create({ data });
   },
+
+  update(
+    id: string,
+    data: { name?: string; phone?: string | null; email?: string | null; onboardedAt?: Date },
+    client: Client = prisma,
+  ) {
+    return client.organization.update({ where: { id }, data });
+  },
 };

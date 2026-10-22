@@ -3,6 +3,10 @@ import cors from "cors";
 import { env } from "./config/env";
 import { authRoutes } from "./routes/authRoutes";
 import { schoolRoutes } from "./routes/schoolRoutes";
+import { userRoutes } from "./routes/userRoutes";
+import { organizationRoutes } from "./routes/organizationRoutes";
+import { staffRoutes } from "./routes/staffRoutes";
+import { onboardingRoutes } from "./routes/onboardingRoutes";
 import { errorHandler } from "./middlewares/errorHandler";
 
 const app: Express = express();
@@ -16,6 +20,10 @@ app.get("/", (req: Request, res: Response) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/schools", schoolRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/organizations", organizationRoutes);
+app.use("/api/staff", staffRoutes);
+app.use("/api/onboarding", onboardingRoutes);
 
 app.use(errorHandler);
 

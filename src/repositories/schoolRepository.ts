@@ -13,7 +13,16 @@ export const schoolRepository = {
     return client.school.findMany({ where: { organizationId }, orderBy: { createdAt: "asc" } });
   },
 
-  create(data: { organizationId: string; name: string; level: SchoolLevel }, client: Client = prisma) {
+  create(
+    data: {
+      organizationId: string;
+      name: string;
+      level: SchoolLevel;
+      address?: string | null;
+      onboardedAt?: Date;
+    },
+    client: Client = prisma,
+  ) {
     return client.school.create({ data });
   },
 };

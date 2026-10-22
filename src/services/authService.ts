@@ -32,7 +32,11 @@ export const authService = {
     return {
       token,
       user: { id: user.id, email: user.email, fullName: user.fullName },
-      organization: { id: organization.id, name: organization.name },
+      organization: {
+        id: organization.id,
+        name: organization.name,
+        onboardedAt: organization.onboardedAt ? organization.onboardedAt.toISOString() : null,
+      },
     };
   },
 
@@ -52,7 +56,11 @@ export const authService = {
     return {
       token,
       user: { id: user.id, email: user.email, fullName: user.fullName },
-      organization: { id: organization.id, name: organization.name },
+      organization: {
+        id: organization.id,
+        name: organization.name,
+        onboardedAt: organization.onboardedAt ? organization.onboardedAt.toISOString() : null,
+      },
     };
   },
 
@@ -69,7 +77,11 @@ export const authService = {
 
     return {
       user: { id: user.id, email: user.email, fullName: user.fullName },
-      organization: { id: organization.id, name: organization.name },
+      organization: {
+        id: organization.id,
+        name: organization.name,
+        onboardedAt: organization.onboardedAt ? organization.onboardedAt.toISOString() : null,
+      },
     };
   },
 };

@@ -1,6 +1,6 @@
 # Architecture & Tech Stack
 
-Companion doc to the [PRD](./School%20Management%20System%20—%20PRD.md). Covers the data store, multi-tenancy model, application layers, offline support, hosting, and the folder structure for both repos.
+Companion doc to the [PRD](./School%20Management%20System%20—%20PRD.md). Covers system-level decisions (data store, multi-tenancy model, application layers, offline support, hosting) and the backend's own folder structure, tooling, and API. Frontend architecture lives in its own repo: [`patino-school-fe/doc/Architecture.md`](../../patino-school-fe/doc/Architecture.md).
 
 ## Database: PostgreSQL
 
@@ -46,9 +46,7 @@ Deploy as a modular monolith on Render:
 - Render Key Value (Redis) for the background job queue.
 - S3-compatible object storage (e.g., Cloudflare R2 or AWS S3) for file storage, since Render doesn't offer object storage natively.
 
-## Folder Structure
-
-### Backend — `patino-schools-be`
+## Folder Structure — `patino-schools-be`
 
 Express + TypeScript, layered by responsibility (controllers → services → repositories → Prisma Client), as already scaffolded:
 
@@ -155,100 +153,6 @@ All endpoints were manually tested end-to-end against the local DB (register →
 
 **Not yet built:** the onboarding wizard endpoint (`PATCH /schools/:id/onboard`, setting `onboarded_at`) — it needs a `terms` table (and a decision on how grade/class structure is captured) that hasn't been designed yet.
 
-### Frontend — `patino-school-fe`
+## Frontend — `patino-school-fe`
 
-Next.js 16 (App Router), React 19, Tailwind v4. **Structure deliberately mirrors `ReproxyFE`** (an existing, larger Next.js app in this developer's other projects) rather than the default `create-next-app` layout — feature-based, with everything under `src/`, thin `app/` route files that just render a component from the matching `features/<name>/`, and dedicated top-level folders for cross-cutting concerns:
-
-```
-patino-school-fe/
-├── src/
-│   ├── app/                      # Routing only — every page.tsx/layout.tsx is a thin wrapper
-│   │   ├── layout.tsx            # Root layout — QueryProvider + Toaster
-│   │   ├── page.tsx              # "/" — redirects to /dashboard or /login (reads the auth store directly)
-│   │   ├── globals.css
-│   │   ├── register/page.tsx     # renders features/auth/pages/register-form
-│   │   ├── login/page.tsx        # renders features/auth/pages/login-form
-│   │   └── dashboard/
-│   │       ├── layout.tsx        # renders features/dashboard/components/dashboard-shell
-│   │       └── page.tsx          # renders features/schools/pages/schools-page
-│   ├── features/
-│   │   ├── auth/
-│   │   │   ├── api/auth-api.ts        # authApi.register/login/me + useRegisterMutation/useLoginMutation/useMeQuery
-│   │   │   └── pages/
-│   │   │       ├── register-form.tsx
-│   │   │       └── login-form.tsx
-│   │   ├── dashboard/
-│   │   │   └── components/dashboard-shell.tsx  # auth guard (redirect to /login) + header/logout
-│   │   └── schools/
-│   │       ├── api/schools-api.ts     # schoolsApi.list/create + useSchoolsQuery/useCreateSchoolMutation
-│   │       └── pages/schools-page.tsx # schools list + create-school form
-│   ├── components/
-│   │   └── ui/                   # button, input, checkbox, dropdown, modal — shadcn-style (cva + clsx/tailwind-merge via cn(), Radix primitives for checkbox/dropdown/modal)
-│   ├── config/
-│   │   ├── env.ts                # NEXT_PUBLIC_API_URL, one getter per backend service (today: just one — the monolith)
-│   │   └── api.ts                # apiConfig.baseUrl, built from env.ts
-│   ├── constants/
-│   │   └── query-keys.ts         # queryKeys.me / queryKeys.schools — no magic strings across features
-│   ├── lib/
-│   │   ├── api/api-client.ts     # createApiClient(baseUrl) factory — .get/.post, reads the zustand token, throws ApiError
-│   │   └── utils/toast-error.ts  # toastError(err) — shared onError handler for mutations
-│   ├── providers/
-│   │   └── QueryProvider.tsx     # QueryClientProvider, one QueryClient per browser tab
-│   ├── stores/
-│   │   └── auth-store.ts         # Zustand — just the JWT (+ hasHydrated), persisted to localStorage
-│   └── types/
-│       ├── auth.ts               # RegisterPayload/LoginPayload/AuthResponse/MeResponse — mirrors backend src/interface/auth.ts
-│       └── school.ts             # CreateSchoolPayload/School — mirrors backend src/interface/school.ts
-├── public/                 # Static assets
-├── .env.local / .env.example  # NEXT_PUBLIC_API_URL
-├── next.config.ts
-├── package.json
-└── tsconfig.json           # baseUrl "." + "@/*": ["./src/*"]
-```
-
-**Why `app/` stays thin:** every route file's entire body is `return <ComponentFromFeatures />` (see `src/app/register/page.tsx`, `src/app/dashboard/layout.tsx`, etc.) — same as ReproxyFE's `app/auth/signin/page.tsx` rendering `features/auth/pages/sign-in-form`. Routing (URL structure) and feature logic are different concerns; `app/` only owns the former. This also means a feature's actual implementation never has to move when its URL changes.
-
-**State split (decided):** **Zustand** (`stores/auth-store.ts`) holds only the JWT — genuine client/session state, persisted to `localStorage` via `zustand/middleware`'s `persist`. **TanStack Query** owns everything fetched from the server — `user`/`organization` (`useMeQuery`, key `queryKeys.me`) and `schools` (`useSchoolsQuery`, key `queryKeys.schools`) — with its own caching, loading/error state, and refetching; nothing server-derived is duplicated into the Zustand store. `register`/`login` set the token in the store and seed the `me` query cache directly via `queryClient.setQueryData`, avoiding a redundant fetch right after auth. `logout` clears the token and calls `queryClient.clear()`. Each feature's query/mutation hooks live alongside its raw API calls in that feature's own `api/*.ts` file (e.g. `features/auth/api/auth-api.ts` has both `authApi.login()` and `useLoginMutation()`) — matching ReproxyFE's `authApi.ts`, rather than a separate root-level data-fetching-hooks folder.
-
-This storage approach — token in client state, hydrated/synced against the server — is deliberately the simple approach for the **admin/bursar/proprietor dashboard**, which the Architecture doc already scoped as a standard online-only experience. It does **not** apply to the teacher portal — that's still planned as a PWA with IndexedDB local-first storage (see Offline support above) and hasn't been built yet.
-
-**Hydration note:** `auth-store`'s `hasHydrated` flag exists because `persist` reads `localStorage` asynchronously after mount — every auth-aware component checks `hasHydrated` before trusting `token`, to avoid a flash of "logged out" state before the store catches up.
-
-**Dev server port:** moved to **3001** (`package.json` → `"dev": "next dev -p 3001"`) since the backend already uses 3000.
-
-**Frontend tooling (installed):**
-
-| Package | Role |
-|---|---|
-| `next`, `react`, `react-dom` | App framework |
-| `tailwindcss` | Styling |
-| `zustand` | Client state — just the auth token (see above) |
-| `@tanstack/react-query` | Server state — fetching/caching `user`, `organization`, `schools` |
-| `react-hot-toast` | Success/error toasts for mutations (register, login, logout, create school) |
-
-**Toasts (decided):** `onSuccess`/`onError` live on the mutation hooks themselves (`useRegisterMutation`, `useLoginMutation`, `useCreateSchoolMutation` in each feature's `api/*.ts`), not in the pages that call them — so every call site gets a toast for free, and the error message always comes from the backend's `ApiError.message` via a shared `toastError()` helper (`lib/utils/toast-error.ts`), falling back to a generic message only for non-API errors (network failure, etc). Once toasts covered success/failure, the pages' own inline error `<p>` elements for these actions were removed as redundant — the schools **list** fetch error is the one exception kept inline, since a background query failure (not a user-triggered action) reads better as a persistent banner than a transient toast.
-
-Still to build — the teacher portal (offline-first) and the rest of the admin dashboard (pupils, staff, classes, fees, settings), following the same `features/<name>/{api,pages,components}` pattern:
-
-```
-src/
-├── app/
-│   ├── (dashboard)/            # becomes a route group once pupils/staff/classes/fees/settings are added
-│   │   ├── pupils/
-│   │   ├── staff/
-│   │   ├── classes/
-│   │   ├── fees/
-│   │   └── settings/
-│   └── (teacher)/               # Teacher portal — PWA, offline-first
-│       ├── layout.tsx
-│       ├── attendance/
-│       └── scores/
-├── features/
-│   ├── pupils/ staff/ classes/ fees/ settings/   # each its own api/ + pages/ (+ components/ as needed)
-│   └── teacher/
-├── lib/
-│   └── offline/                 # IndexedDB storage + sync logic for the teacher portal
-public/
-├── manifest.json            # PWA manifest
-└── sw.js                    # Service worker (offline caching + sync)
-```
+Moved to its own doc, in its own repo: [`patino-school-fe/doc/Architecture.md`](../../patino-school-fe/doc/Architecture.md). Covers the frontend's folder structure, state management (Zustand + TanStack Query), UI kit, and the V1 design pass (mock-data screens for every PRD module). Kept here only as a pointer, since frontend architecture belongs in the frontend repo, not duplicated across both.

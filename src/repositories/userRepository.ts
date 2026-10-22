@@ -15,4 +15,8 @@ export const userRepository = {
   create(data: { email: string; fullName: string; passwordHash: string }, client: Client = prisma) {
     return client.user.create({ data });
   },
+
+  update(id: string, data: { email?: string; fullName?: string; phone?: string | null }, client: Client = prisma) {
+    return client.user.update({ where: { id }, data });
+  },
 };

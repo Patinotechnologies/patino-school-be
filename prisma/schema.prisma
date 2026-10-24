@@ -23,6 +23,38 @@ enum StaffRole {
   @@map("staff_role")
 }
 
+enum GuardianRelationship {
+  mother
+  father
+  guardian
+
+  @@map("guardian_relationship")
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  late
+
+  @@map("attendance_status")
+}
+
+enum Term {
+  first
+  second
+  third
+
+  @@map("term")
+}
+
+enum FeeInvoiceStatus {
+  unpaid
+  partial
+  paid
+
+  @@map("fee_invoice_status")
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
@@ -65,6 +97,11 @@ model School {
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
+  classes       Class[]
+  pupils        Pupil[]
+  feeStructures FeeStructure[]
+  subjects      Subject[]
+
   @@index([organizationId])
   @@map("schools")
 }
@@ -81,7 +118,193 @@ model Staff {
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
+  classesTaught  Class[]
+  subjectsTaught ClassSubject[]
+
   @@unique([organizationId, email])
   @@index([organizationId])
   @@map("staff")
+}
+
+model Class {
+  id             String   @id @default(uuid()) @db.Uuid
+  schoolId       String   @map("school_id") @db.Uuid
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name           String
+  classTeacherId String?  @map("class_teacher_id") @db.Uuid
+  classTeacher   Staff?   @relation(fields: [classTeacherId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  pupils             Pupil[]
+  attendanceSessions AttendanceSession[]
+  examScores         ExamScore[]
+  feeInvoices        FeeInvoice[]
+  classSubjects      ClassSubject[]
+
+  @@index([schoolId])
+  @@map("classes")
+}
+
+model Subject {
+  id                 String   @id @default(uuid()) @db.Uuid
+  schoolId           String   @map("school_id") @db.Uuid
+  school             School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name               String
+  testMaxScore       Float    @default(0) @map("test_max_score")
+  assignmentMaxScore Float    @default(0) @map("assignment_max_score")
+  examMaxScore       Float    @default(0) @map("exam_max_score")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  classSubjects      ClassSubject[]
+  examScores         ExamScore[]
+  attendanceSessions AttendanceSession[]
+
+  @@unique([schoolId, name])
+  @@map("subjects")
+}
+
+model ClassSubject {
+  id               String   @id @default(uuid()) @db.Uuid
+  classId          String   @map("class_id") @db.Uuid
+  class            Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId        String   @map("subject_id") @db.Uuid
+  subject          Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectTeacherId String?  @map("subject_teacher_id") @db.Uuid
+  subjectTeacher   Staff?   @relation(fields: [subjectTeacherId], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([classId, subjectId])
+  @@map("class_subjects")
+}
+
+model Pupil {
+  id                   String               @id @default(uuid()) @db.Uuid
+  schoolId             String               @map("school_id") @db.Uuid
+  school               School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classId              String?              @map("class_id") @db.Uuid
+  class                Class?               @relation(fields: [classId], references: [id], onDelete: SetNull)
+  fullName             String               @map("full_name")
+  dateOfBirth          DateTime             @map("date_of_birth") @db.Date
+  guardianName         String               @map("guardian_name")
+  guardianPhone        String               @map("guardian_phone")
+  guardianRelationship GuardianRelationship @map("guardian_relationship")
+  address              String?
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  attendanceRecords AttendanceRecord[]
+  examScores        ExamScore[]
+  feeInvoices       FeeInvoice[]
+
+  @@index([schoolId])
+  @@index([classId])
+  @@map("pupils")
+}
+
+/**
+ * One "attendance was taken" event — for a whole class, a subject period, or a named extra activity.
+ */
+model AttendanceSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  classId   String   @map("class_id") @db.Uuid
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId String?  @map("subject_id") @db.Uuid
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  /**
+   * Free-text label for a non-subject session (e.g. "Sports Day") — independent of `subject`, which is only set when a real Subject was picked.
+   */
+  activity  String?
+  date      DateTime @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  records AttendanceRecord[]
+
+  @@index([classId, date])
+  @@map("attendance_sessions")
+}
+
+model AttendanceRecord {
+  id        String            @id @default(uuid()) @db.Uuid
+  sessionId String            @map("session_id") @db.Uuid
+  session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  pupilId   String            @map("pupil_id") @db.Uuid
+  pupil     Pupil             @relation(fields: [pupilId], references: [id], onDelete: Cascade)
+  status    AttendanceStatus
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  @@unique([sessionId, pupilId])
+  @@map("attendance_records")
+}
+
+model ExamScore {
+  id        String   @id @default(uuid()) @db.Uuid
+  pupilId   String   @map("pupil_id") @db.Uuid
+  pupil     Pupil    @relation(fields: [pupilId], references: [id], onDelete: Cascade)
+  classId   String   @map("class_id") @db.Uuid
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId String   @map("subject_id") @db.Uuid
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  term      Term
+  session   String
+  score     Float
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([pupilId, subjectId, term, session])
+  @@index([classId, term, session])
+  @@map("exam_scores")
+}
+
+model FeeStructure {
+  id        String      @id @default(uuid()) @db.Uuid
+  schoolId  String      @map("school_id") @db.Uuid
+  school    School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  level     SchoolLevel
+  term      Term
+  session   String
+  amount    Float
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  @@unique([schoolId, level, term, session])
+  @@map("fee_structures")
+}
+
+model FeeInvoice {
+  id         String           @id @default(uuid()) @db.Uuid
+  pupilId    String           @map("pupil_id") @db.Uuid
+  pupil      Pupil            @relation(fields: [pupilId], references: [id], onDelete: Cascade)
+  classId    String           @map("class_id") @db.Uuid
+  class      Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  term       Term
+  session    String
+  amount     Float
+  amountPaid Float            @default(0) @map("amount_paid")
+  status     FeeInvoiceStatus @default(unpaid)
+  dueDate    DateTime?        @map("due_date") @db.Date
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  payments FeePayment[]
+
+  @@unique([pupilId, term, session])
+  @@index([classId, term, session])
+  @@map("fee_invoices")
+}
+
+model FeePayment {
+  id        String     @id @default(uuid()) @db.Uuid
+  invoiceId String     @map("invoice_id") @db.Uuid
+  invoice   FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount    Float
+  paidAt    DateTime   @default(now()) @map("paid_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@index([invoiceId])
+  @@map("fee_payments")
 }

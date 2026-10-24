@@ -7,6 +7,11 @@ import { userRoutes } from "./routes/userRoutes";
 import { organizationRoutes } from "./routes/organizationRoutes";
 import { staffRoutes } from "./routes/staffRoutes";
 import { onboardingRoutes } from "./routes/onboardingRoutes";
+import { classRoutes } from "./routes/classRoutes";
+import { pupilRoutes } from "./routes/pupilRoutes";
+import { subjectRoutes } from "./routes/subjectRoutes";
+import { classSubjectRoutes } from "./routes/classSubjectRoutes";
+import { attendanceRoutes } from "./routes/attendanceRoutes";
 import { errorHandler } from "./middlewares/errorHandler";
 
 const app: Express = express();
@@ -24,6 +29,11 @@ app.use("/api/users", userRoutes);
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/onboarding", onboardingRoutes);
+app.use("/api/classes", classRoutes);
+app.use("/api/pupils", pupilRoutes);
+app.use("/api/subjects", subjectRoutes);
+app.use("/api/class-subjects", classSubjectRoutes);
+app.use("/api/attendance", attendanceRoutes);
 
 app.use(errorHandler);
 

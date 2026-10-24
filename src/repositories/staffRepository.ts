@@ -4,6 +4,11 @@ import { prisma } from "../config/prisma";
 type Client = typeof prisma | Prisma.TransactionClient;
 
 export const staffRepository = {
+  /** Scoped by organizationId so a staff member can never be read across tenants. */
+  findById(id: string, organizationId: string, client: Client = prisma) {
+    return client.staff.findFirst({ where: { id, organizationId } });
+  },
+
   listByOrganization(
     organizationId: string,
     options: { search?: string; role?: StaffRole; active?: boolean; page: number; pageSize: number },

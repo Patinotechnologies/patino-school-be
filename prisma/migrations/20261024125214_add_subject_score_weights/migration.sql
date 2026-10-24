@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "subjects" ADD COLUMN     "assignment_max_score" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "exam_max_score" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "test_max_score" DOUBLE PRECISION NOT NULL DEFAULT 0;

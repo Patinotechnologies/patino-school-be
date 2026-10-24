@@ -69,16 +69,21 @@ export const attendanceService = {
     const subjectId = data.subjectId ?? null;
     const activity = data.activity ?? null;
 
-    const sessionId = await prisma.$transaction(async (tx) => {
-      const existing = await attendanceRepository.findSession({ classId: data.classId, date, subjectId, activity }, tx);
-      const session = existing ?? (await attendanceRepository.createSession({ classId: data.classId, date, subjectId, activity }, tx));
+    const sessionId = await prisma.$transaction(
+      async (tx) => {
+        const existing = await attendanceRepository.findSession({ classId: data.classId, date, subjectId, activity }, tx);
+        const session = existing ?? (await attendanceRepository.createSession({ classId: data.classId, date, subjectId, activity }, tx));
 
-      for (const record of data.records) {
-        await attendanceRepository.upsertRecord(session.id, record.pupilId, record.status, tx);
-      }
+        // Run the roster's upserts concurrently rather than one round trip at a time — keeps large
+        // classes well under the transaction timeout instead of scaling it linearly with roster size.
+        await Promise.all(
+          data.records.map((record) => attendanceRepository.upsertRecord(session.id, record.pupilId, record.status, tx)),
+        );
 
-      return session.id;
-    });
+        return session.id;
+      },
+      { timeout: 15000 },
+    );
 
     const session = await attendanceRepository.getSession(sessionId);
     return toSessionResponse(session);

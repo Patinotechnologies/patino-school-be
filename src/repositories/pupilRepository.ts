@@ -11,6 +11,7 @@ export const pupilRepository = {
   ) {
     const where: Prisma.PupilWhereInput = {
       schoolId,
+      deletedAt: null,
       ...(options.classId ? { classId: options.classId } : {}),
       ...(options.search
         ? {
@@ -34,17 +35,17 @@ export const pupilRepository = {
     ]);
   },
 
-  /** Scoped by organizationId (via the owning school) so a pupil can never be read across tenants. */
+  /** Scoped by organizationId (via the owning school) so a pupil can never be read across tenants. Excludes soft-deleted pupils. */
   findById(id: string, organizationId: string, client: Client = prisma) {
     return client.pupil.findFirst({
-      where: { id, school: { organizationId } },
+      where: { id, deletedAt: null, school: { organizationId } },
       include: { class: true },
     });
   },
 
   findManyByIds(ids: string[], organizationId: string, client: Client = prisma) {
     return client.pupil.findMany({
-      where: { id: { in: ids }, school: { organizationId } },
+      where: { id: { in: ids }, deletedAt: null, school: { organizationId } },
       include: { class: true },
     });
   },
@@ -81,8 +82,25 @@ export const pupilRepository = {
     return client.pupil.update({ where: { id }, data, include: { class: true } });
   },
 
-  delete(id: string, client: Client = prisma) {
-    return client.pupil.delete({ where: { id } });
+  /** Soft delete — marks the pupil as deleted rather than removing the row, so attendance/exam history is preserved. */
+  softDelete(id: string, client: Client = prisma) {
+    return client.pupil.update({ where: { id }, data: { deletedAt: new Date() } });
+  },
+
+  suspend(id: string, reason: string, client: Client = prisma) {
+    return client.pupil.update({
+      where: { id },
+      data: { status: "suspended", suspensionReason: reason },
+      include: { class: true },
+    });
+  },
+
+  reactivate(id: string, client: Client = prisma) {
+    return client.pupil.update({
+      where: { id },
+      data: { status: "active", suspensionReason: null },
+      include: { class: true },
+    });
   },
 
   moveMany(pupilIds: string[], classId: string | null, client: Client = prisma) {

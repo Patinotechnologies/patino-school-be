@@ -28,6 +28,10 @@ export const movePupilsSchema = z.object({
   classId: z.string().uuid().nullable(),
 });
 
+export const suspendPupilSchema = z.object({
+  reason: z.string().trim().min(1, "A reason is required").max(500),
+});
+
 export const listPupilsQuerySchema = z.object({
   schoolId: z.string().uuid(),
   classId: z.string().uuid().optional(),

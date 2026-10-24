@@ -34,6 +34,18 @@ export const pupilController = {
     res.status(204).send();
   },
 
+  async suspend(req: Request, res: Response) {
+    const organizationId = req.auth!.organizationId;
+    const pupil = await pupilService.suspend(organizationId, req.params.id as string, req.body);
+    res.status(200).json(pupil);
+  },
+
+  async reactivate(req: Request, res: Response) {
+    const organizationId = req.auth!.organizationId;
+    const pupil = await pupilService.reactivate(organizationId, req.params.id as string);
+    res.status(200).json(pupil);
+  },
+
   async move(req: Request, res: Response) {
     const organizationId = req.auth!.organizationId;
     const pupils = await pupilService.moveMany(organizationId, req.body);

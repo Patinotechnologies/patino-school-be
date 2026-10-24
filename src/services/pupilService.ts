@@ -10,6 +10,8 @@ import type {
   MovePupilsRequest,
   PaginatedPupilResponse,
   PupilResponse,
+  PupilStatus,
+  SuspendPupilRequest,
   UpdatePupilRequest,
 } from "../interface/pupil";
 
@@ -24,6 +26,8 @@ function toPupilResponse(pupil: Pupil & { class: Class | null }): PupilResponse 
     guardianPhone: pupil.guardianPhone,
     guardianRelationship: pupil.guardianRelationship as GuardianRelationship,
     address: pupil.address,
+    status: pupil.status as PupilStatus,
+    suspensionReason: pupil.suspensionReason,
   };
 }
 
@@ -108,7 +112,25 @@ export const pupilService = {
     if (!existing) {
       throw new AppError(404, "Pupil not found");
     }
-    await pupilRepository.delete(pupilId);
+    await pupilRepository.softDelete(pupilId);
+  },
+
+  async suspend(organizationId: string, pupilId: string, data: SuspendPupilRequest): Promise<PupilResponse> {
+    const existing = await pupilRepository.findById(pupilId, organizationId);
+    if (!existing) {
+      throw new AppError(404, "Pupil not found");
+    }
+    const suspended = await pupilRepository.suspend(pupilId, data.reason);
+    return toPupilResponse(suspended);
+  },
+
+  async reactivate(organizationId: string, pupilId: string): Promise<PupilResponse> {
+    const existing = await pupilRepository.findById(pupilId, organizationId);
+    if (!existing) {
+      throw new AppError(404, "Pupil not found");
+    }
+    const reactivated = await pupilRepository.reactivate(pupilId);
+    return toPupilResponse(reactivated);
   },
 
   async moveMany(organizationId: string, data: MovePupilsRequest): Promise<PupilResponse[]> {

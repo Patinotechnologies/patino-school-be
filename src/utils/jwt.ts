@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import { env } from "../config/env";
 
-export type AuthRole = "proprietor";
+export type AuthRole = "proprietor" | "staff";
 
 export interface AuthTokenPayload {
   sub: string;

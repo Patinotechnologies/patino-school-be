@@ -1,5 +1,6 @@
 import type { Staff } from "@prisma/client";
 import { staffRepository } from "../repositories/staffRepository";
+import { staffAuthService } from "./staffAuthService";
 import { AppError } from "../utils/AppError";
 import type { CreateStaffRequest, ListStaffQuery, PaginatedStaffResponse, StaffResponse, StaffRole } from "../interface/staff";
 
@@ -15,6 +16,14 @@ export function toStaffResponse(staff: Staff): StaffResponse {
 }
 
 export const staffService = {
+  async getById(organizationId: string, staffId: string): Promise<StaffResponse> {
+    const staff = await staffRepository.findById(staffId, organizationId);
+    if (!staff) {
+      throw new AppError(404, "Staff member not found");
+    }
+    return toStaffResponse(staff);
+  },
+
   async listForOrganization(organizationId: string, query: ListStaffQuery): Promise<PaginatedStaffResponse> {
     const [staff, total] = await staffRepository.listByOrganization(organizationId, query);
     return {
@@ -29,18 +38,23 @@ export const staffService = {
   },
 
   async create(organizationId: string, data: CreateStaffRequest): Promise<StaffResponse> {
-    const existing = await staffRepository.findByEmail(organizationId, data.email);
+    const existing = await staffRepository.findByEmail(data.email);
     if (existing) {
       throw new AppError(409, "A staff member with this email already exists");
     }
 
+    const { inviteToken, inviteTokenExpiresAt } = staffAuthService.newInvite();
     const staff = await staffRepository.create({
       organizationId,
       fullName: data.fullName,
       email: data.email,
       phone: data.phone,
       role: data.role,
+      inviteToken,
+      inviteTokenExpiresAt,
     });
+
+    await staffAuthService.sendInviteEmail(staff);
     return toStaffResponse(staff);
   },
 };

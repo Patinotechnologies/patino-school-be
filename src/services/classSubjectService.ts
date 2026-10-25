@@ -1,4 +1,4 @@
-import type { ClassSubject, Staff, Subject } from "@prisma/client";
+import type { Class, ClassSubject, Staff, Subject } from "@prisma/client";
 import { classSubjectRepository } from "../repositories/classSubjectRepository";
 import { classRepository } from "../repositories/classRepository";
 import { subjectRepository } from "../repositories/subjectRepository";
@@ -7,10 +7,13 @@ import { toSubjectResponse } from "./subjectService";
 import { AppError } from "../utils/AppError";
 import type { AssignClassSubjectRequest, ClassSubjectResponse } from "../interface/subject";
 
-function toClassSubjectResponse(cs: ClassSubject & { subject: Subject; subjectTeacher: Staff | null }): ClassSubjectResponse {
+function toClassSubjectResponse(
+  cs: ClassSubject & { subject: Subject; subjectTeacher: Staff | null; class: Class },
+): ClassSubjectResponse {
   return {
     id: cs.id,
     classId: cs.classId,
+    class: { id: cs.class.id, name: cs.class.name },
     subject: toSubjectResponse(cs.subject),
     subjectTeacher: cs.subjectTeacher ? { id: cs.subjectTeacher.id, fullName: cs.subjectTeacher.fullName } : null,
   };
@@ -24,6 +27,17 @@ export const classSubjectService = {
     }
 
     const rows = await classSubjectRepository.listByClass(classId);
+    return rows.map(toClassSubjectResponse);
+  },
+
+  /** Every subject a given staff member teaches, across all classes in this org. */
+  async listForTeacher(organizationId: string, subjectTeacherId: string): Promise<ClassSubjectResponse[]> {
+    const teacher = await staffRepository.findById(subjectTeacherId, organizationId);
+    if (!teacher) {
+      throw new AppError(404, "Staff member not found");
+    }
+
+    const rows = await classSubjectRepository.listBySubjectTeacher(subjectTeacherId, organizationId);
     return rows.map(toClassSubjectResponse);
   },
 

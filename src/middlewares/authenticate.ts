@@ -18,7 +18,11 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
 
   const token = header.slice("Bearer ".length);
   try {
-    req.auth = verifyAuthToken(token);
+    const payload = verifyAuthToken(token);
+    if (payload.role !== "proprietor") {
+      return next(new AppError(401, "Invalid or expired token"));
+    }
+    req.auth = payload;
     next();
   } catch {
     next(new AppError(401, "Invalid or expired token"));

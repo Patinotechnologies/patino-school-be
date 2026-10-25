@@ -21,4 +21,10 @@ export const staffController = {
     const staff = await staffService.create(organizationId, req.body);
     res.status(201).json(staff);
   },
+
+  async remove(req: Request, res: Response) {
+    const organizationId = req.auth!.organizationId;
+    await staffService.delete(organizationId, req.params.id as string);
+    res.status(204).send();
+  },
 };

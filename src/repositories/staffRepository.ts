@@ -74,4 +74,9 @@ export const staffRepository = {
       data: { passwordHash, inviteToken: null, inviteTokenExpiresAt: null },
     });
   },
+
+  /** Hard delete — class/subject-teacher assignments are set null (schema default) and attendance records cascade-delete. */
+  delete(id: string, client: Client = prisma) {
+    return client.staff.delete({ where: { id } });
+  },
 };

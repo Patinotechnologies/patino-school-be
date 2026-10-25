@@ -20,6 +20,15 @@ export const classRepository = {
     });
   },
 
+  /** Every class a given staff member is the class teacher for, across the org's schools. */
+  listByClassTeacher(classTeacherId: string, organizationId: string, client: Client = prisma) {
+    return client.class.findMany({
+      where: { classTeacherId, school: { organizationId } },
+      include: { classTeacher: true },
+      orderBy: { createdAt: "asc" },
+    });
+  },
+
   create(data: { schoolId: string; name: string; classTeacherId?: string | null }, client: Client = prisma) {
     return client.class.create({ data, include: { classTeacher: true } });
   },

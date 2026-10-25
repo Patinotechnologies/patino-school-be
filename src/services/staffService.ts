@@ -2,7 +2,12 @@ import type { Staff } from "@prisma/client";
 import { staffRepository } from "../repositories/staffRepository";
 import { staffAuthService } from "./staffAuthService";
 import { AppError } from "../utils/AppError";
-import type { CreateStaffRequest, ListStaffQuery, PaginatedStaffResponse, StaffResponse, StaffRole } from "../interface/staff";
+import type { CreateStaffRequest, ListStaffQuery, PaginatedStaffResponse, StaffResponse, StaffRole, StaffStatus } from "../interface/staff";
+
+function toStaffStatus(staff: Staff): StaffStatus {
+  if (!staff.active) return "inactive";
+  return staff.passwordHash ? "active" : "pending";
+}
 
 export function toStaffResponse(staff: Staff): StaffResponse {
   return {
@@ -12,6 +17,7 @@ export function toStaffResponse(staff: Staff): StaffResponse {
     phone: staff.phone,
     role: staff.role as StaffRole,
     active: staff.active,
+    status: toStaffStatus(staff),
   };
 }
 
@@ -56,5 +62,13 @@ export const staffService = {
 
     await staffAuthService.sendInviteEmail(staff);
     return toStaffResponse(staff);
+  },
+
+  async delete(organizationId: string, staffId: string): Promise<void> {
+    const existing = await staffRepository.findById(staffId, organizationId);
+    if (!existing) {
+      throw new AppError(404, "Staff member not found");
+    }
+    await staffRepository.delete(staffId);
   },
 };

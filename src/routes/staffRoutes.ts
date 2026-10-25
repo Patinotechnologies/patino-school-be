@@ -10,3 +10,4 @@ staffRoutes.use(authenticate);
 staffRoutes.get("/", validateQuery(listStaffQuerySchema), staffController.list);
 staffRoutes.post("/", validate(createStaffSchema), staffController.create);
 staffRoutes.get("/:id", staffController.getOne);
+staffRoutes.delete("/:id", staffController.remove);

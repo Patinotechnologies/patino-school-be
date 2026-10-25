@@ -32,4 +32,9 @@ export const staffAttendanceRepository = {
   listRecordsForDate(organizationId: string, date: Date, client: Client = prisma) {
     return client.staffAttendanceRecord.findMany({ where: { date, staff: { organizationId } } });
   },
+
+  /** Most recent check-ins for one staff member — only days they actually checked in, newest first. */
+  listRecordsForStaff(staffId: string, limit: number, client: Client = prisma) {
+    return client.staffAttendanceRecord.findMany({ where: { staffId }, orderBy: { date: "desc" }, take: limit });
+  },
 };

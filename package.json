@@ -8,6 +8,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "nodemon",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/app.js",
     "postinstall": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",

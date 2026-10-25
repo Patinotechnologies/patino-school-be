@@ -39,14 +39,39 @@ export const staffRepository = {
     ]);
   },
 
-  findByEmail(organizationId: string, email: string, client: Client = prisma) {
-    return client.staff.findUnique({ where: { organizationId_email: { organizationId, email } } });
+  /** Email is globally unique across staff (not just within an org) — needed for unscoped login lookup. */
+  findByEmail(email: string, client: Client = prisma) {
+    return client.staff.findUnique({ where: { email } });
+  },
+
+  findByInviteToken(token: string, client: Client = prisma) {
+    return client.staff.findUnique({ where: { inviteToken: token } });
+  },
+
+  /** All active staff in the org, unpaginated — small enough lists (one school group's staff) to fetch in one go. */
+  listActiveByOrganization(organizationId: string, client: Client = prisma) {
+    return client.staff.findMany({ where: { organizationId, active: true }, orderBy: { fullName: "asc" } });
   },
 
   create(
-    data: { organizationId: string; fullName: string; email: string; phone?: string | null; role: StaffRole },
+    data: {
+      organizationId: string;
+      fullName: string;
+      email: string;
+      phone?: string | null;
+      role: StaffRole;
+      inviteToken: string;
+      inviteTokenExpiresAt: Date;
+    },
     client: Client = prisma,
   ) {
     return client.staff.create({ data });
+  },
+
+  acceptInvite(id: string, passwordHash: string, client: Client = prisma) {
+    return client.staff.update({
+      where: { id },
+      data: { passwordHash, inviteToken: null, inviteTokenExpiresAt: null },
+    });
   },
 };

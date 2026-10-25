@@ -3,6 +3,12 @@ import { staffService } from "../services/staffService";
 import type { ListStaffQuery } from "../interface/staff";
 
 export const staffController = {
+  async getOne(req: Request, res: Response) {
+    const organizationId = req.auth!.organizationId;
+    const staff = await staffService.getById(organizationId, req.params.id as string);
+    res.status(200).json(staff);
+  },
+
   async list(req: Request, res: Response) {
     const organizationId = req.auth!.organizationId;
     const query = req.validatedQuery as ListStaffQuery;

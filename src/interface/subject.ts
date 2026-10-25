@@ -43,13 +43,21 @@ export interface SubjectTeacherSummary {
   fullName: string;
 }
 
+export interface ClassSummaryForSubject {
+  id: string;
+  name: string;
+}
+
 export interface ClassSubjectResponse {
   id: string;
   classId: string;
+  class: ClassSummaryForSubject;
   subject: SubjectResponse;
   subjectTeacher: SubjectTeacherSummary | null;
 }
 
+/** Either classId or subjectTeacherId must be given — scopes to one class's subjects, or one teacher's subjects across all classes. */
 export interface ListClassSubjectsQuery {
-  classId: string;
+  classId?: string;
+  subjectTeacherId?: string;
 }

@@ -25,6 +25,11 @@ export const assignClassSubjectSchema = z.object({
   subjectTeacherId: z.string().uuid().nullable().optional(),
 });
 
-export const listClassSubjectsQuerySchema = z.object({
-  classId: z.string().uuid(),
-});
+export const listClassSubjectsQuerySchema = z
+  .object({
+    classId: z.string().uuid().optional(),
+    subjectTeacherId: z.string().uuid().optional(),
+  })
+  .refine((data) => Boolean(data.classId) || Boolean(data.subjectTeacherId), {
+    message: "classId or subjectTeacherId is required",
+  });

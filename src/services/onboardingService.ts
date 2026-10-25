@@ -2,6 +2,7 @@ import { prisma } from "../config/prisma";
 import { organizationRepository } from "../repositories/organizationRepository";
 import { schoolRepository } from "../repositories/schoolRepository";
 import { staffRepository } from "../repositories/staffRepository";
+import { staffAuthService } from "./staffAuthService";
 import { toOrganizationResponse } from "./organizationService";
 import { toSchoolResponse } from "./schoolService";
 import { toStaffResponse } from "./staffService";
@@ -33,11 +34,16 @@ export const onboardingService = {
 
       const staff = [];
       for (const member of data.staff) {
-        staff.push(await staffRepository.create({ organizationId: auth.organizationId, ...member }, tx));
+        const { inviteToken, inviteTokenExpiresAt } = staffAuthService.newInvite();
+        staff.push(
+          await staffRepository.create({ organizationId: auth.organizationId, ...member, inviteToken, inviteTokenExpiresAt }, tx),
+        );
       }
 
       return { updatedOrganization, schools, staff };
     });
+
+    await Promise.all(result.staff.map((member) => staffAuthService.sendInviteEmail(member)));
 
     return {
       organization: toOrganizationResponse(result.updatedOrganization),

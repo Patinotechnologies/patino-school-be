@@ -9,3 +9,4 @@ export const staffRoutes = Router();
 staffRoutes.use(authenticate);
 staffRoutes.get("/", validateQuery(listStaffQuerySchema), staffController.list);
 staffRoutes.post("/", validate(createStaffSchema), staffController.create);
+staffRoutes.get("/:id", staffController.getOne);

@@ -15,5 +15,9 @@ export const env = {
   jwtSecret: required("JWT_SECRET", process.env.NODE_ENV === "production" ? undefined : "dev-only-insecure-secret"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   // Comma-separated list of allowed frontend origins, e.g. "https://app.patino.com,https://staging.patino.com".
-  corsOrigins: (process.env.CORS_ORIGIN || "http://localhost:3001").split(",").map((origin) => origin.trim()),
+  corsOrigins: (process.env.CORS_ORIGIN || "http://localhost:3001,http://localhost:3002")
+    .split(",")
+    .map((origin) => origin.trim()),
+  // Base URL of the staff PWA (not yet built) — used to build the "set your password" link in invite emails.
+  staffInviteBaseUrl: process.env.STAFF_INVITE_BASE_URL || "http://localhost:3002",
 };

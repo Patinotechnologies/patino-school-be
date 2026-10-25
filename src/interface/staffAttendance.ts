@@ -30,3 +30,9 @@ export interface StaffAttendanceEntry {
   checkInAt: string | null;
   status: StaffAttendanceStatus;
 }
+
+export interface StaffAttendanceHistoryEntry {
+  date: string;
+  checkInAt: string;
+  status: StaffAttendanceStatus;
+}

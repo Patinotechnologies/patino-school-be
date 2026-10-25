@@ -3,6 +3,7 @@ import { staffRepository } from "../repositories/staffRepository";
 import { AppError } from "../utils/AppError";
 import type {
   StaffAttendanceEntry,
+  StaffAttendanceHistoryEntry,
   StaffAttendanceSettingsResponse,
   StaffAttendanceStatus,
   StaffCheckInResponse,
@@ -98,5 +99,24 @@ export const staffAttendanceService = {
         status: computeStatus(record.checkInAt, settings),
       };
     });
+  },
+
+  /** A staff member's most recent check-ins — only days they actually checked in, since there's no school-calendar concept to derive absences from here. */
+  async listForStaff(organizationId: string, staffId: string, limit = 30): Promise<StaffAttendanceHistoryEntry[]> {
+    const staff = await staffRepository.findById(staffId, organizationId);
+    if (!staff) {
+      throw new AppError(404, "Staff member not found");
+    }
+
+    const [records, settings] = await Promise.all([
+      staffAttendanceRepository.listRecordsForStaff(staffId, limit),
+      staffAttendanceService.getSettings(organizationId),
+    ]);
+
+    return records.map((record) => ({
+      date: record.date.toISOString().slice(0, 10),
+      checkInAt: record.checkInAt.toISOString(),
+      status: computeStatus(record.checkInAt, settings),
+    }));
   },
 };

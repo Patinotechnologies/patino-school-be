@@ -14,6 +14,7 @@ import { classSubjectRoutes } from "./routes/classSubjectRoutes";
 import { attendanceRoutes } from "./routes/attendanceRoutes";
 import { staffAuthRoutes } from "./routes/staffAuthRoutes";
 import { staffAttendanceRoutes } from "./routes/staffAttendanceRoutes";
+import { teacherAttendanceRoutes } from "./routes/teacherAttendanceRoutes";
 import { errorHandler } from "./middlewares/errorHandler";
 
 const app: Express = express();
@@ -38,6 +39,7 @@ app.use("/api/class-subjects", classSubjectRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/staff-auth", staffAuthRoutes);
 app.use("/api/staff-attendance", staffAttendanceRoutes);
+app.use("/api/teacher-attendance", teacherAttendanceRoutes);
 
 app.use(errorHandler);
 

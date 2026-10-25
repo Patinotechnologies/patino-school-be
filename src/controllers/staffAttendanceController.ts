@@ -26,6 +26,12 @@ export const staffAttendanceController = {
     res.status(200).json(entries);
   },
 
+  async getForStaff(req: Request, res: Response) {
+    const organizationId = req.auth!.organizationId;
+    const entries = await staffAttendanceService.listForStaff(organizationId, req.params.staffId as string);
+    res.status(200).json(entries);
+  },
+
   async checkIn(req: Request, res: Response) {
     const { staffId, organizationId } = req.staffAuth!;
     const result = await staffAttendanceService.checkIn(staffId, organizationId);

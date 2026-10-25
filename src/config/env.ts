@@ -18,6 +18,13 @@ export const env = {
   corsOrigins: (process.env.CORS_ORIGIN || "http://localhost:3001,http://localhost:3002")
     .split(",")
     .map((origin) => origin.trim()),
-  // Base URL of the staff PWA (not yet built) — used to build the "set your password" link in invite emails.
+  // Base URL of the staff PWA — used to build the "set your password" link in invite emails.
   staffInviteBaseUrl: process.env.STAFF_INVITE_BASE_URL || "http://localhost:3002",
+  // Gmail SMTP sender. Left unset, emailService falls back to logging instead of sending —
+  // so the app still runs without these configured. GMAIL_APP_PASSWORD is a 16-character
+  // Google "App Password" (requires 2FA on that account), not the account's login password.
+  gmail: {
+    user: process.env.GMAIL_USER,
+    appPassword: process.env.GMAIL_APP_PASSWORD,
+  },
 };

@@ -16,6 +16,7 @@ staffAttendanceRoutes.put(
   staffAttendanceController.updateSettings,
 );
 staffAttendanceRoutes.get("/", authenticate, validateQuery(listStaffAttendanceQuerySchema), staffAttendanceController.list);
+staffAttendanceRoutes.get("/staff/:staffId", authenticate, staffAttendanceController.getForStaff);
 
 // Staff-facing (PWA) — check-in, authenticated as the staff member themselves.
 staffAttendanceRoutes.post("/check-in", authenticateStaff, staffAttendanceController.checkIn);

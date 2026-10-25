@@ -11,4 +11,10 @@ export const staffAuthController = {
     const result = await staffAuthService.login(req.body);
     res.status(200).json(result);
   },
+
+  async me(req: Request, res: Response) {
+    const { staffId, organizationId } = req.staffAuth!;
+    const result = await staffAuthService.getMe(staffId, organizationId);
+    res.status(200).json(result);
+  },
 };

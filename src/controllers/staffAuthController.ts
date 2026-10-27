@@ -17,4 +17,9 @@ export const staffAuthController = {
     const result = await staffAuthService.getMe(staffId, organizationId);
     res.status(200).json(result);
   },
+
+  async logout(req: Request, res: Response) {
+    await staffAuthService.logout(req.staffAuth!);
+    res.status(204).send();
+  },
 };

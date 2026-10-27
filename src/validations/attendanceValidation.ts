@@ -21,3 +21,10 @@ export const listAttendanceQuerySchema = z.object({
   classId: z.string().uuid(),
   date: dateSchema.optional(),
 });
+
+export const listAttendanceLogQuerySchema = z.object({
+  schoolId: z.string().uuid(),
+  classId: z.string().uuid().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).optional().default(100),
+});

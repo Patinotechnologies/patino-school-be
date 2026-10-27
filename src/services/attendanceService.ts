@@ -1,11 +1,18 @@
-import type { AttendanceRecord, AttendanceSession, Pupil, Subject } from "@prisma/client";
+import type { AttendanceRecord, AttendanceSession, Class, Pupil, Subject } from "@prisma/client";
 import { attendanceRepository } from "../repositories/attendanceRepository";
 import { classRepository } from "../repositories/classRepository";
 import { subjectRepository } from "../repositories/subjectRepository";
 import { pupilRepository } from "../repositories/pupilRepository";
+import { schoolRepository } from "../repositories/schoolRepository";
 import { prisma } from "../config/prisma";
 import { AppError } from "../utils/AppError";
-import type { AttendanceSessionResponse, ListAttendanceSessionsQuery, MarkAttendanceRequest } from "../interface/attendance";
+import type {
+  AttendanceSessionResponse,
+  ListAttendanceLogQuery,
+  ListAttendanceSessionsQuery,
+  MarkAttendanceRequest,
+  PaginatedAttendanceLogResponse,
+} from "../interface/attendance";
 
 type SessionWithRecords = AttendanceSession & {
   subject: Subject | null;
@@ -87,5 +94,50 @@ export const attendanceService = {
 
     const session = await attendanceRepository.getSession(sessionId);
     return toSessionResponse(session);
+  },
+
+  /** Every attendance record for a school, flattened across classes — for the admin "view attendance log" screen. */
+  async listLogForSchool(organizationId: string, query: ListAttendanceLogQuery): Promise<PaginatedAttendanceLogResponse> {
+    const school = await schoolRepository.findById(query.schoolId, organizationId);
+    if (!school) {
+      throw new AppError(404, "School not found");
+    }
+
+    if (query.classId) {
+      const cls = await classRepository.findById(query.classId, organizationId);
+      if (!cls) {
+        throw new AppError(404, "Class not found");
+      }
+      if (cls.schoolId !== query.schoolId) {
+        throw new AppError(400, "That class does not belong to this school");
+      }
+    }
+
+    const [records, total] = await attendanceRepository.listLogForSchool(query.schoolId, query);
+
+    type RecordWithRelations = AttendanceRecord & {
+      pupil: Pupil;
+      session: AttendanceSession & { class: Class; subject: Subject | null };
+    };
+
+    return {
+      data: (records as RecordWithRelations[]).map((record) => ({
+        pupilId: record.pupil.id,
+        pupilName: record.pupil.fullName,
+        classId: record.session.classId,
+        className: record.session.class.name,
+        subjectId: record.session.subjectId,
+        subjectName: record.session.subject?.name ?? null,
+        activity: record.session.activity,
+        date: record.session.date.toISOString().slice(0, 10),
+        status: record.status,
+      })),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
+      },
+    };
   },
 };

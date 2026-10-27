@@ -2,7 +2,7 @@ import type { Organization } from "@prisma/client";
 import { organizationRepository } from "../repositories/organizationRepository";
 import { AppError } from "../utils/AppError";
 import type { AuthTokenPayload } from "../utils/jwt";
-import type { OrganizationProfileResponse, UpdateOrganizationRequest } from "../interface/organization";
+import type { OrganizationProfileResponse, OrganizationStatsResponse, UpdateOrganizationRequest } from "../interface/organization";
 
 export function toOrganizationResponse(organization: Organization): OrganizationProfileResponse {
   return {
@@ -31,5 +31,10 @@ export const organizationService = {
 
     const updated = await organizationRepository.update(auth.organizationId, data);
     return toOrganizationResponse(updated);
+  },
+
+  async getStats(auth: AuthTokenPayload): Promise<OrganizationStatsResponse> {
+    const [totalStaff, totalPupils, totalClasses] = await organizationRepository.getStats(auth.organizationId);
+    return { totalStaff, totalPupils, totalClasses };
   },
 };

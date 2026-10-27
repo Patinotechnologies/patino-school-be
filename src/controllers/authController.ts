@@ -17,4 +17,9 @@ export const authController = {
     const result = await authService.getCurrentUser(req.auth!);
     res.status(200).json(result);
   },
+
+  async logout(req: Request, res: Response) {
+    await authService.logout(req.auth!);
+    res.status(204).send();
+  },
 };

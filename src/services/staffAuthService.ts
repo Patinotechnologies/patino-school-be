@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { staffRepository } from "../repositories/staffRepository";
 import { classRepository } from "../repositories/classRepository";
 import { classSubjectRepository } from "../repositories/classSubjectRepository";
+import { tokenBlocklistRepository } from "../repositories/tokenBlocklistRepository";
 import { hashPassword, verifyPassword } from "../utils/password";
 import { signAuthToken } from "../utils/jwt";
 import { AppError } from "../utils/AppError";
@@ -87,5 +88,9 @@ export const staffAuthService = {
     ];
 
     return { staff: toStaffAuthSummary(staff), assignments };
+  },
+
+  async logout(auth: { jti: string; exp: number }): Promise<void> {
+    await tokenBlocklistRepository.revoke(auth.jti, new Date(auth.exp * 1000));
   },
 };

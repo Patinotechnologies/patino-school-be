@@ -9,3 +9,4 @@ export const staffAuthRoutes = Router();
 staffAuthRoutes.post("/accept-invite", validate(acceptStaffInviteSchema), staffAuthController.acceptInvite);
 staffAuthRoutes.post("/login", validate(staffLoginSchema), staffAuthController.login);
 staffAuthRoutes.get("/me", authenticateStaff, staffAuthController.me);
+staffAuthRoutes.post("/logout", authenticateStaff, staffAuthController.logout);

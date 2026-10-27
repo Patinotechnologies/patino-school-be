@@ -45,4 +45,26 @@ export const attendanceRepository = {
       update: { status },
     });
   },
+
+  /** Every attendance record for a school, across all classes — optionally narrowed to one class. */
+  listLogForSchool(
+    schoolId: string,
+    options: { classId?: string; page: number; pageSize: number },
+    client: Client = prisma,
+  ) {
+    const where: Prisma.AttendanceRecordWhereInput = {
+      session: { class: { schoolId, ...(options.classId ? { id: options.classId } : {}) } },
+    };
+
+    return Promise.all([
+      client.attendanceRecord.findMany({
+        where,
+        include: { pupil: true, session: { include: { class: true, subject: true } } },
+        orderBy: { session: { date: "desc" } },
+        skip: (options.page - 1) * options.pageSize,
+        take: options.pageSize,
+      }),
+      client.attendanceRecord.count({ where }),
+    ]);
+  },
 };

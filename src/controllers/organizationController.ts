@@ -11,4 +11,9 @@ export const organizationController = {
     const result = await organizationService.updateCurrent(req.auth!, req.body);
     res.status(200).json(result);
   },
+
+  async getStats(req: Request, res: Response) {
+    const result = await organizationService.getStats(req.auth!);
+    res.status(200).json(result);
+  },
 };

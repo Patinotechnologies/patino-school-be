@@ -9,3 +9,4 @@ export const organizationRoutes = Router();
 organizationRoutes.use(authenticate);
 organizationRoutes.get("/me", organizationController.getMe);
 organizationRoutes.patch("/me", validate(updateOrganizationSchema), organizationController.updateMe);
+organizationRoutes.get("/stats", organizationController.getStats);

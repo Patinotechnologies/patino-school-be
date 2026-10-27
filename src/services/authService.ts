@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { userRepository } from "../repositories/userRepository";
 import { organizationRepository } from "../repositories/organizationRepository";
+import { tokenBlocklistRepository } from "../repositories/tokenBlocklistRepository";
 import { hashPassword, verifyPassword } from "../utils/password";
 import { signAuthToken, type AuthTokenPayload } from "../utils/jwt";
 import { AppError } from "../utils/AppError";
@@ -83,5 +84,9 @@ export const authService = {
         onboardedAt: organization.onboardedAt ? organization.onboardedAt.toISOString() : null,
       },
     };
+  },
+
+  async logout(auth: AuthTokenPayload): Promise<void> {
+    await tokenBlocklistRepository.revoke(auth.jti, new Date(auth.exp * 1000));
   },
 };

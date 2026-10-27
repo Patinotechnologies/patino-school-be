@@ -44,3 +44,33 @@ export interface ListAttendanceSessionsQuery {
   classId: string;
   date?: string;
 }
+
+/** One pupil's attendance record, flattened across all classes in a school — for the admin attendance log. */
+export interface AttendanceLogEntry {
+  pupilId: string;
+  pupilName: string;
+  classId: string;
+  className: string;
+  subjectId: string | null;
+  subjectName: string | null;
+  activity: string | null;
+  date: string;
+  status: AttendanceStatus;
+}
+
+export interface ListAttendanceLogQuery {
+  schoolId: string;
+  classId?: string;
+  page: number;
+  pageSize: number;
+}
+
+export interface PaginatedAttendanceLogResponse {
+  data: AttendanceLogEntry[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}

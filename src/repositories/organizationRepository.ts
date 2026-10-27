@@ -23,4 +23,13 @@ export const organizationRepository = {
   ) {
     return client.organization.update({ where: { id }, data });
   },
+
+  /** [totalStaff, totalPupils, totalClasses] across every school in the org. */
+  getStats(organizationId: string, client: Client = prisma) {
+    return Promise.all([
+      client.staff.count({ where: { organizationId } }),
+      client.pupil.count({ where: { deletedAt: null, school: { organizationId } } }),
+      client.class.count({ where: { school: { organizationId } } }),
+    ]);
+  },
 };
